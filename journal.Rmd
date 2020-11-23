@@ -9,46 +9,126 @@ output:
     collapsed: false
     number_sections: true
     toc_depth: 3
-    #code_folding: hide
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(message=FALSE,warning=FALSE, cache=TRUE)
 ```
 
-**IMPORTANT:** You can delete everything in here and start fresh. You might want to start by not deleting anything above this line until you know what that stuff is doing.
 
-This is an `.Rmd` file. It is plain text with special features. Any time you write just like this, it will be compiled to normal text in the website. If you put a \# in front of your text, it will create a top level-header.
-
-# My first post
+# Section 1: Intro to the tidyverse
 
 Last compiled: `r Sys.Date()`
 
-Notice that whatever you define as a top level header, automatically gets put into the table of contents bar on the left. 
+Our Task was to analyse the bike sales data. After previously analyzing the data by the bike-type and manufacturing-year we now want to take a look at the number of sales sorted by their state in which they were sold in. Afterwards we want to take a look how these numbers changed over the last years.
 
-## Second level header
-
-You can add more headers by adding more hashtags. These won't be put into the table of contents
-
-### third level header
-
-Here's an even lower level header
-
-# My second post (note the order)
-
-Last compiled: `r Sys.Date()`
-
-I'm writing this tutorial going from the top down. And, this is how it will be printed. So, notice the second post is second in the list. If you want your most recent post to be at the top, then make a new post starting at the top. If you want the oldest first, do, then keep adding to the bottom
-
-# Adding R stuff
-
-So far this is just a blog where you can write in plain text and serve your writing to a webpage. One of the main purposes of this lab journal is to record your progress learning R. The reason I am asking you to use this process is because you can both make a website, and a lab journal, and learn R all in R-studio. This makes everything really convenient and in the same place. 
-
-So, let's say you are learning how to make a histogram in R. For example, maybe you want to sample 100 numbers from a normal distribution with mean = 0, and standard deviation = 1, and then you want to plot a histogram. You can do this right here by using an r code block, like this:
+Let's first take a look at the number of sales per state if you add up all the prevoius years together:
 
 ```{r}
-samples <- rnorm(100, mean=0, sd=1)
-hist(samples)
+# 1.0 Load libraries ----
+  library(tidyverse)
+  library(lubridate)
+  library(writexl)
+  #Read Excel Files
+  library(readxl)
+
+# 2.0 Importing Files ----
+  bikes <- read_xlsx(path = "~/Documents/GitHub/ws20-business-data-science-basics---lab-journal-ABQ1996/DS_101/00_data/01_bike_sales/01_raw_data/bikes.xlsx")
+  bike_shops <- read_xlsx(path = "~/Documents/GitHub/ws20-business-data-science-basics---lab-journal-ABQ1996/DS_101/00_data/01_bike_sales/01_raw_data/bikeshops.xlsx")
+  bike_orders <- read_xlsx(path = "~/Documents/GitHub/ws20-business-data-science-basics---lab-journal-ABQ1996/DS_101/00_data/01_bike_sales/01_raw_data/orderlines.xlsx")
+
+# 3.0 Examining Data ----
+  glimpse(bike_orders)
+
+# 4.0 Joining Data ----
+  bike_orderlines_joined <- bike_orders %>% left_join(bikes, by = c("product.id"="bike.id")) %>% left_join(bike_shops, by = c("customer.id" = "bikeshop.id"))
+  bike_orderlines_joined %>% glimpse()
+  #glimpse(bike_orderlines_joined)
+  
+# 5.0 Wrangling Data ----
+  bike_orderlines_joined %>% 
+  select(category) %>%
+  filter(str_detect(category, "^Mountain")) %>% 
+  unique()
+
+# 6.0 Business Insights ----
+  #Separate the joined category category into 3 separate columns
+  bike_orderlines_joined <- separate(bike_orderlines_joined, col=category, into = c("cat.1","cat.2","cat.3"), sep = " - ")
+  #Calculate the total price of the order
+  bike_orderlines_joined <- mutate(bike_orderlines_joined, total.price = quantity*price)
+  
+  bike_orderlines_wrangled <- bike_orderlines_joined
+  
+  #8.1 Which state sells the most of the bikes?
+  bike_orderlines_bystate <- bike_orderlines_wrangled
+
+  #Separate the joined location category into 2 separate columns
+  bike_orderlines_bystate <- separate(bike_orderlines_wrangled, col=location, into = c("state","city"), sep = ", ")
+
+  # Manipulate the data
+  sales_by_state <- bike_orderlines_bystate
+  
+  # Select columns
+  sales_by_state %>% 
+  select(state, city, quantity) %>% 
+    
+  # Grouping by year and summarizing sales
+  group_by(state) %>% 
+  summarize(numberofsales = sum(quantity)) %>%
+
+  # Step 2 - Visualize
+    
+  # Setup canvas with the columns year (x-axis) and sales (y-axis)
+  ggplot(aes(x = state, y = numberofsales)) +
+    
+  # Geometries
+  geom_col(fill = "#2DC6D6") + # Use geom_col for a bar plot
+  geom_label(aes(label = numberofsales)) + # Adding labels to the bars
+  geom_smooth(method = "lm", se = FALSE) + # Adding a trendline
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    
+  # Formatting
+  # scale_y_continuous(labels = scales::dollar) + # Change the y-axis. 
+  # Again, we have to adjust it for euro values
+  labs(
+      title    = "Revenue by state",
+      subtitle = "Upward Trend",
+      x = "", # Override defaults for x and y
+      y = "Revenue"
+    )
 ```
 
-When you knit this R Markdown document, you will see that the histogram is printed to the page, along with the R code. This document can be set up to hide the R code in the webpage, just delete the comment (hashtag) from the cold folding option in the yaml header up top. For purposes of letting yourself see the code, and me see the code, best to keep it the way that it is. You'll learn that all of these things and more can be customized in each R code block.
+Interesting! Let's see if Bremen is still the city with the most sales if we additionally sort them by their manufacturing-year:
+
+
+```{r plot, fig.width= 10, fig.height=5}
+ #8.2 Which state sells the most of the bikes in which year?
+  sales_by_stateandyear <- bike_orderlines_bystate
+  
+  # Select columns
+  sales_by_stateandyear %>% 
+  select(state, city, quantity, order.date) %>% 
+  mutate(year = year(order.date)) %>%
+    
+  # Group by and summarize year and main catgegory
+  group_by(state,year) %>%
+  summarise(numberofsales_2 = sum(quantity)) %>%
+  ungroup() %>% 
+    
+  # Set up x, y, fill
+  ggplot(aes(x = state, y = numberofsales_2, fill = year)) +
+    
+  # Geometries
+  geom_col() + # Run up to here to get a stacked bar plot
+    
+  # Facet
+  facet_wrap(~ year) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+      title = "Revenue by year and main category",
+      subtitle = "Each product category has an upward trend",
+      fill = "Main category" # Changes the legend name
+    )
+ 
+```

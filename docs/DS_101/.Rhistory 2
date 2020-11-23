@@ -1,0 +1,3 @@
+library(rmarkdown)
+install.packages("rmarkdown")
+install.packages(c("codetools", "KernSmooth", "nlme"))
