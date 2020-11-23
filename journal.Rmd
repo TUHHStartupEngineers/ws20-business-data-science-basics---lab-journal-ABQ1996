@@ -10,6 +10,7 @@ output:
     number_sections: true
     toc_depth: 3
     code_folding: hide
+    message: false
 ---
 
 ```{r setup, include=FALSE}
