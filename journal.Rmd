@@ -133,3 +133,169 @@ Interesting! Let's see if Bremen is still the city with the most sales if we add
     )
  
 ```
+
+# Section 2: Data Aquisition
+Let's gather some data from the pokemon universe. Maybe they can help with the bike sales all over the country. Who doesn't want to catch a fast running pokemon if he or she sees it on the streets?
+```{r}
+library(tidyverse) # Main Package - Loads dplyr, purrr, etc.
+library(rvest)     # HTML Hacking & Web Scraping
+library(xopen)     # Quickly opening URLs
+library(jsonlite)  # converts JSON files to R objects
+library(glue)      # concatenate strings
+library(stringi)   # character string/text processing
+library(httr)
+library(glue)
+
+Pokemon_API <- function(path) {
+  url <- modify_url(url = "https://pokeapi.co", path = glue("/api/v2/pokemon-species/{path}/"))
+  resp_raw <- GET(url)
+  stop_for_status(resp_raw) # automatically throws an error if a request did not succeed
+  resp_JSON <- fromJSON(rawToChar(resp_raw$content), flatten) 
+}
+Pokemon_species <- Pokemon_API("5")
+Pokemon_species
+```
+
+Well that was some interesting insight into the pokemon universe. Now let's shift back to the bike sales in order to determine the bike categories of the competition:
+```{r}
+library(tidyverse) # Main Package - Loads dplyr, purrr, etc.
+library(rvest)     # HTML Hacking & Web Scraping
+library(xopen)     # Quickly opening URLs
+library(jsonlite)  # converts JSON files to R objects
+library(glue)      # concatenate strings
+library(stringi)   # character string/text processing
+library(httr)
+library(glue)
+
+#8.2 Get the the model names, categories and prices of the bikes from rosebikes.de
+# 8.2.1 COLLECT PRODUCT FAMILIES ----
+  url_home          <- "https://www.rosebikes.de/fahrräder" 
+
+  # Read in the HTML for the entire webpage
+  html_home         <- read_html(url_home) 
+
+  # Web scrape the ids for the families
+  bike_family_cop <- html_home %>% 
+  
+  # Get the nodes for the families ...
+  html_nodes(css = ".catalog-navigation__link") %>%
+  # ...and extract the information of the id attribute
+  html_attr('title') %>% 
+    
+  # Remove the product families SALE and BIKE-FINDER 
+  discard(.p = ~stringr::str_detect(.x,"Sale|Bike-Finder")) %>%
+    
+  # Convert vector to tibble effectivly giving each entry a number
+  enframe(name = "position", value = "family_class") %>%
+    
+  # Add a hashtag so we can get nodes of the categories by id (#)
+  mutate(
+    family_id = str_glue("#{family_class}")
+  )
+    
+#8.2.2 COLLECT PRODUCT CATEGORIES URL ----
+  
+  # Combine all Ids to one string so that we will get all nodes at once
+  # (seperated by the OR operator ",")
+  #family_id_css <- bike_family_cop %>%
+  #  pull(family_id) %>%
+  #  stringr::str_c(collapse = ", ")
+  
+  # Extract the urls from the href attribute
+  bike_category_cop <- html_home %>%
+    
+  # Select nodes by the ids
+  html_nodes(css = ".catalog-navigation__link") %>%
+  html_attr('href') %>%
+  
+  # Remove the product families SALE and BIKE-FINDER 
+  discard(.p = ~stringr::str_detect(.x,"sale|zoovu")) %>%  
+    
+  # Convert vector to tibble
+  enframe(name = "position", value = "subdirectory") %>%
+    
+  # Add the domain, because we will get only the subdirectories
+  mutate(
+    url = glue("https://www.rosebikes.de{subdirectory}")
+  ) %>%
+    
+  # Some categories are listed multiple times.
+  # We only need unique values
+  distinct(url)
+  
+#8.2.3 GET THE MODEL NAMES FROM THE URLs ----
+    #First Category
+    # select first bike category url
+    bike_model_url1 <- bike_category_cop$url[1]
+  
+    # Get the URLs for the bikes of the first category
+    html_bike_model_cop1  <- read_html(bike_model_url1) %>% 
+  
+    # Select nodes by the ids
+    html_nodes(css = ".catalog-category-bikes__title") %>%
+    html_text('catalog-category-bikes__title-text') %>%  
+    
+    # Convert vector to tibble
+    enframe(name = "position", value = "name")
+    
+    #2nd Category
+    # select first bike category url
+    bike_model_url2 <- bike_category_cop$url[2]
+    
+    # Get the URLs for the bikes of the first category
+    html_bike_model_cop2  <- read_html(bike_model_url2) %>% 
+      
+    # Select nodes by the ids
+    html_nodes(css = ".catalog-category-bikes__title") %>%
+    html_text('catalog-category-bikes__title-text') %>%  
+      
+    # Convert vector to tibble
+    enframe(name = "position", value = "name")    
+  
+#8.2.4 GET THE MODEL PRICES FROM THE URLs ----
+  #First Category
+  # select first bike category url
+  bike_model_url1 <- bike_category_cop$url[1]
+  
+  # Get the URLs for the bikes of the first category
+  html_bike_model_price_cop1  <- read_html(bike_model_url1) %>% 
+      
+  # Select nodes by the ids
+  html_nodes(css = ".catalog-category-bikes__price") %>%
+  html_text('catalog-category-bikes__price-title') %>%  
+    
+  # Remove the query parameters of the URL (everything after the '?')
+  str_remove(pattern = "ab ") %>%
+  str_remove(pattern = "oder ab.*") %>%
+    
+  # Convert vector to tibble
+  enframe(name = "position", value = "name")
+    
+  #2nd Category
+  # select first bike category url
+  bike_model_url2 <- bike_category_cop$url[2]
+    
+  # Get the URLs for the bikes of the first category
+  html_bike_model_price_cop2  <- read_html(bike_model_url2) %>% 
+      
+  # Select nodes by the ids
+  html_nodes(css = ".catalog-category-bikes__price") %>%
+  html_text('catalog-category-bikes__price-title') %>%  
+  
+  # Remove the query parameters of the URL (everything after the '?')
+  str_remove(pattern = "ab ") %>%
+  str_remove(pattern = "oder ab.*") %>%
+  
+  # Convert vector to tibble
+  enframe(name = "position", value = "name")    
+  
+  #Join the vectors together
+  bike_cat1_cop <- left_join(html_bike_model_cop1,html_bike_model_price_cop1, by = c("position"="position"))
+  bike_cat2_cop <- left_join(html_bike_model_cop2,html_bike_model_price_cop2, by = c("position"="position"))
+  
+  
+  bike_category_cop
+  bike_cat1_cop
+  bike_cat2_cop
+````
+Well that's sad. There seems to be too much competition on the market in order to correlate the number of pokemons with an increase in bike sales.
