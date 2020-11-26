@@ -297,5 +297,409 @@ library(glue)
   bike_category_cop
   bike_cat1_cop
   bike_cat2_cop
-````
+```
 Well that's sad. There seems to be too much competition on the market in order to correlate the number of pokemons with an increase in bike sales.
+
+
+# Section 3: Data Wrangling
+Let's use the data from the USPTO website to find out a little bit about patents in the US. 
+
+First let's take a look at the TOP 10 US companies in regards to the number of patents:
+```{r}
+#10 Challenge ----
+library(vroom)
+library(tidyverse)
+library(lubridate)
+library(writexl)
+#Read Excel Files
+library(readxl)
+library(data.table)
+
+#10.1. First Part: Which US company has the most patents? List the 10 US companies with the most granted patents ----
+
+col_types_assignee <- list(
+  id = col_character(),
+  type = col_character(),
+  nn = col_character(),
+  nn2 = col_character(),
+  organization = col_character()
+)
+
+patent_assignee <- vroom(
+  file       = "~/Dokumente (Offline)/assignee.tsv", 
+  delim      = "\t", 
+  col_names  = names(col_types_assignee),
+  col_types  = col_types_assignee,
+  na         = c("", "NA", "NULL")
+) %>% 
+  select(id, type, organization)
+  patent_assignee <- patent_assignee[-c(1), ]
+
+col_types_p_assignee <- list(
+  patent_id = col_character(),
+  assignee_id = col_character()
+)
+
+patent_p_assignee <- vroom(
+  file       = "~/Dokumente (Offline)/patent_assignee.tsv", 
+  delim      = "\t", 
+  col_names  = names(col_types_p_assignee),
+  col_types  = col_types_p_assignee,
+  na         = c("", "NA", "NULL")
+)%>% 
+  select(patent_id, assignee_id)
+  patent_p_assignee <- patent_p_assignee[-c(1), ]
+
+combined_patent_assignee_data <- left_join(patent_assignee,patent_p_assignee, by = c("id" = "assignee_id"))
+
+combined_patent_assignee_data_DT <- as.data.table(combined_patent_assignee_data) %>% 
+    filter((type == 2)) %>% 
+    group_by(organization) %>% 
+    summarise(total = n()) %>% 
+    ungroup() %>% 
+    arrange(desc(total))
+head(combined_patent_assignee_data_DT,10)
+```
+Now let's take a look at the TOP 10 US companies in 2019 in regards to their number of filed patents:
+```{r}
+#10 Challenge ----
+library(vroom)
+library(tidyverse)
+library(lubridate)
+library(writexl)
+#Read Excel Files
+library(readxl)
+library(data.table)
+#10.2 What US company had the most patents granted in 2019? List the top 10 companies of 2019 ----
+
+col_types_assignee <- list(
+  id = col_character(),
+  type = col_character(),
+  nn = col_character(),
+  nn2 = col_character(),
+  organization = col_character()
+)
+
+patent_assignee <- vroom(
+  file       = "~/Dokumente (Offline)/assignee.tsv", 
+  delim      = "\t", 
+  col_names  = names(col_types_assignee),
+  col_types  = col_types_assignee,
+  na         = c("", "NA", "NULL")
+) %>% 
+  select(id, type, organization)
+patent_assignee <- patent_assignee[-c(1), ]
+
+col_types_p_assignee <- list(
+  patent_id = col_character(),
+  assignee_id = col_character()
+)
+
+patent_p_assignee <- vroom(
+  file       = "~/Dokumente (Offline)/patent_assignee.tsv", 
+  delim      = "\t", 
+  col_names  = names(col_types_p_assignee),
+  col_types  = col_types_p_assignee,
+  na         = c("", "NA", "NULL")
+)%>% 
+  select(patent_id, assignee_id)
+patent_p_assignee <- patent_p_assignee[-c(1), ]
+
+col_types_patent <- list(
+  patent_id = col_character(),
+  pat_type = col_character(),
+  pat_number = col_character(),
+  pat_country = col_character(),
+  pat_date = col_date("%Y-%m-%d")
+)
+
+patent_list <- vroom(
+  file       = "~/Dokumente (Offline)/patent.tsv", 
+  delim      = "\t", 
+  col_names  = names(col_types_patent),
+  col_types  = col_types_patent,
+  na         = c("", "NA", "NULL")
+  ) %>% 
+  select(patent_id, pat_date)
+patent_list <- patent_list[-c(1), ]
+
+combined_patent_data_prev <- left_join(patent_assignee,patent_p_assignee, by = c("id" = "assignee_id"))
+combined_patent_data <- left_join(combined_patent_data_prev,patent_list, by = c("patent_id"="patent_id"))
+
+combined_patent_data_DT <- as.data.table(combined_patent_data) %>% 
+  mutate(pat_date = year(pat_date)) %>% 
+  filter((type == 2)) %>% 
+  filter((pat_date == 2019)) %>% 
+  group_by(organization) %>% 
+  summarise(total = n()) %>% 
+  ungroup() %>% 
+  arrange(desc(total))
+head(combined_patent_data_DT,10)
+```
+Lastly let's take a look at their USPTO tech main classes. What are the TOP 5 tech main classes of the TOP 10 companies filing patents in the US worldwide. 
+```{r}
+#10 Challenge ----
+library(vroom)
+library(tidyverse)
+library(lubridate)
+library(writexl)
+#Read Excel Files
+library(readxl)
+library(data.table)
+
+
+col_types_assignee <- list(
+  id = col_character(),
+  type = col_character(),
+  nn = col_character(),
+  nn2 = col_character(),
+  organization = col_character()
+)
+
+patent_assignee <- vroom(
+  file       = "~/Dokumente (Offline)/assignee.tsv", 
+  delim      = "\t", 
+  col_names  = names(col_types_assignee),
+  col_types  = col_types_assignee,
+  na         = c("", "NA", "NULL")
+) %>% 
+  select(id, type, organization)
+patent_assignee <- patent_assignee[-c(1), ]
+
+col_types_p_assignee <- list(
+  patent_id = col_character(),
+  assignee_id = col_character()
+)
+
+patent_p_assignee <- vroom(
+  file       = "~/Dokumente (Offline)/patent_assignee.tsv", 
+  delim      = "\t", 
+  col_names  = names(col_types_p_assignee),
+  col_types  = col_types_p_assignee,
+  na         = c("", "NA", "NULL")
+)%>% 
+  select(patent_id, assignee_id)
+patent_p_assignee <- patent_p_assignee[-c(1), ]
+
+col_types_uspc <- list(
+  nn3 = col_character(),
+  patent_id = col_character(),
+  mainclass_id = col_character()
+)
+
+patent_uspc <- vroom(
+  file       = "~/Dokumente (Offline)/uspc.tsv", 
+  delim      = "\t", 
+  col_names  = names(col_types_uspc),
+  col_types  = col_types_uspc,
+  na         = c("", "NA", "NULL")
+) %>% 
+  select(patent_id,mainclass_id)
+patent_uspc <- patent_uspc[-c(1), ]
+
+combined_uspc_data_prev <- left_join(patent_assignee,patent_p_assignee, by = c("id" = "assignee_id"))
+combined_uspc_data <- left_join(combined_uspc_data_prev,patent_uspc, by = c("patent_id"="patent_id"))
+
+
+combined_uspc_data_companies_DT <- as.data.table(combined_uspc_data) %>% 
+  group_by(organization) %>% 
+  summarise(total = n()) %>% 
+  ungroup() %>% 
+  arrange(desc(total))
+combined_uspc_data_companies_DT <- combined_uspc_data_companies_DT[-c(2), ]
+combined_uspc_data_companies_DT <- head(combined_uspc_data_companies_DT,10)
+combined_uspc_data_companies_DT
+
+combined_uspc_patentdata_DT <- as.data.table(combined_uspc_data) %>% 
+  group_by(organization) %>% 
+  select(organization,mainclass_id) %>% 
+  filter((organization == combined_uspc_data_companies_DT[1,1]|organization == combined_uspc_data_companies_DT[2,1]|organization == combined_uspc_data_companies_DT[3,1]|organization == combined_uspc_data_companies_DT[4,1]|organization == combined_uspc_data_companies_DT[5,1]|organization == combined_uspc_data_companies_DT[6,1]|organization == combined_uspc_data_companies_DT[7,1]|organization == combined_uspc_data_companies_DT[8,1]|organization == combined_uspc_data_companies_DT[9,1]|organization == combined_uspc_data_companies_DT[10,1])) %>% 
+  group_by(mainclass_id) %>% 
+  summarise(total = n()) %>% 
+  ungroup() %>% 
+  arrange(desc(total))
+combined_uspc_patentdata_DT <- combined_uspc_patentdata_DT[-c(1), ]
+head(combined_uspc_patentdata_DT,5)
+```
+
+# Section 4: Data Visualization
+As the last part, let's take a look at our more recent global situation. How did the COVID-19 case number evolve throughout the year 2020?
+```{r}
+library(tidyverse)
+library(lubridate)
+library(writexl)
+#Read Excel Files
+library(readxl)
+library(data.table)
+library(scales)
+library(ggrepel)
+library(maps)
+
+# 1.1 COVID data preparation ----
+covid_data_tbl <- read_csv("https://opendata.ecdc.europa.eu/covid19/casedistribution/csv")
+
+
+covid_data_tbl_DT <- as.data.table(covid_data_tbl) %>% 
+  filter(countriesAndTerritories == "Germany"|countriesAndTerritories == "France"|countriesAndTerritories == "Spain"|countriesAndTerritories == "United_Kingdom"|countriesAndTerritories == "United_States_of_America") %>%  
+  select("dateRep", "countriesAndTerritories", cases) %>%
+  mutate(dateRep=dmy(dateRep)) %>%
+  arrange(dateRep, desc()) %>% 
+  group_by(countriesAndTerritories) %>% 
+    mutate(cum_cases = cumsum(cases)) %>% 
+  ungroup()
+
+Cases_France <- covid_data_tbl_DT %>% 
+  filter(countriesAndTerritories == "France") %>% 
+  select(dateRep,cum_cases) %>% 
+  as.data.table()
+
+Cases_Spain <- covid_data_tbl_DT %>% 
+  filter(countriesAndTerritories == "Spain") %>% 
+  select(dateRep,cum_cases) %>% 
+  as.data.table()
+
+Cases_Germany <- covid_data_tbl_DT %>% 
+  filter(countriesAndTerritories == "Germany") %>% 
+  select(dateRep,cum_cases) %>% 
+  as.data.table()
+
+Cases_UK <- covid_data_tbl_DT %>% 
+  filter(countriesAndTerritories == "United_Kingdom") %>% 
+  select(dateRep,cum_cases) %>% 
+  as.data.table()
+
+Cases_Europe <- left_join(Cases_France, Cases_Spain, by = c("dateRep" = "dateRep"))
+Cases_Europe <- left_join(Cases_Europe, Cases_Germany, by = c("dateRep" = "dateRep"))
+Cases_Europe <- left_join(Cases_Europe, Cases_UK, by = c("dateRep" = "dateRep")) %>% 
+                    add_column("Europe",.after = 1) %>%
+                    rename("France"  = "cum_cases.x",
+                        "Spain" = "cum_cases.y",
+                        "Germany" = "cum_cases.x.x" ,
+                        "UK" = "cum_cases.y.y",
+                          "countriesAndTerritories" = 2) %>% 
+                    mutate(cum_cases = France+Spain+Germany+UK) %>% 
+                    select(dateRep,countriesAndTerritories,cum_cases) %>% 
+                    as.data.table()
+covid_data_tbl_DT <- covid_data_tbl_DT%>% 
+  select(dateRep,countriesAndTerritories, cum_cases)
+  
+covid_data_tbl_DT <- rbind(covid_data_tbl_DT,Cases_Europe) %>% 
+  arrange(dateRep, desc())
+
+#1.2 COVID data plot
+covid_data_tbl_DT %>%
+# Canvas
+ggplot(aes(x = dateRep,y = cum_cases, color = countriesAndTerritories))+
+# Geometries 
+geom_line(size = 0.5, linetype = 1, aes(color=countriesAndTerritories)) + 
+expand_limits(y = 0) +
+
+labs(
+  title = "COVID-19 confirmed cases worldwide",
+  subtitle = "As of 31/10/2020. Europe only consists of countries shown with the execption of the USA.",
+  x = "Year 2020",
+  y = "Cumulatitve Cases"
+)+   
+
+theme_light()+
+theme(legend.position  = "bottom", 
+      legend.direction = "vertical") +
+guides(col = guide_legend(ncol = 3,
+       title = "Continent / Country",
+       title.position = "left"
+     )
+  )+
+scale_color_manual(values=c('grey50','red','blue','darkgreen','brown','orange'))+
+scale_x_date(labels = date_format(("%b")),breaks = breaks_width("1 month")) +
+scale_y_continuous(labels = scales::dollar_format(scale = 1/1000000, 
+                                                    prefix = "",
+                                                    suffix = " M")) +
+
+geom_label_repel(aes(
+  label=ifelse((dateRep == "2020-11-26" & countriesAndTerritories == "United_States_of_America") , as.character(cum_cases),'')), 
+  nudge_x = -10,
+  label.padding = unit(0.55, "lines"), # Rectangle size around label
+  label.size = 0.35,
+  point.padding = unit(0.55,"lines"),
+  segment.color = 'orange',
+  color = "white",
+  fill="orange"
+)+
+
+geom_label_repel(aes(
+  label=ifelse((dateRep == "2020-11-25" & countriesAndTerritories == "Europe") , as.character(cum_cases),'')), 
+  nudge_x = -20,
+  label.padding = unit(0.55, "lines"), # Rectangle size around label
+  label.size = 0.35,
+  point.padding = unit(0.55,"lines"),
+  segment.color = 'grey50',
+  color = "white",
+  fill="grey50"
+)
+```
+
+And which countries have the most death cases due to the corona virus in regards to their population?
+```{r}
+library(tidyverse)
+library(lubridate)
+library(writexl)
+#Read Excel Files
+library(readxl)
+library(data.table)
+library(scales)
+library(ggrepel)
+library(maps)
+
+
+worldmap_raw <- map_data("world")
+
+# 1.1 COVID data preparation ----
+covid_data_tbl <- read_csv("https://opendata.ecdc.europa.eu/covid19/casedistribution/csv")
+
+covid_data_tbl_DT2 <- covid_data_tbl %>% 
+  mutate(across(countriesAndTerritories, str_replace_all, "_", " ")) %>%
+  mutate(countriesAndTerritories = case_when(
+    countriesAndTerritories == "United Kingdom" ~ "UK",
+    countriesAndTerritories == "United States of America" ~ "USA",
+    countriesAndTerritories == "Czechia" ~ "Czech Republic",
+    TRUE ~ countriesAndTerritories
+  ))
+
+covid_data_tbl_DT2 <- covid_data_tbl_DT2 %>% 
+  select(dateRep, deaths, popData2019, countriesAndTerritories) %>% 
+  group_by(countriesAndTerritories) %>% 
+  mutate(dateRep=dmy(dateRep)) %>%
+  arrange(dateRep, desc()) %>% 
+  mutate(cum_deaths = cumsum(deaths)) %>% 
+  ungroup() %>% 
+  filter(dateRep == "2020-11-25") %>%
+  mutate(relative_deaths = (cum_deaths/popData2019)) %>% 
+  select(countriesAndTerritories, relative_deaths)
+
+worldmap <- worldmap_raw %>%
+  select(long,lat,group,region)
+worldmap_COVID <- left_join(worldmap, covid_data_tbl_DT2, by = c("region" = "countriesAndTerritories")) %>% 
+mutate(relative_deaths_rounded = round(relative_deaths,4))
+
+ggplot(worldmap_COVID, aes(map_id = region))+
+  geom_map(aes(fill = relative_deaths_rounded), map = worldmap_COVID) +
+  expand_limits(x = worldmap_COVID$long, y=worldmap_COVID$lat)+
+
+  
+labs(
+  title = "Confirmed COVID-19 deaths relative to the size of the population",
+  subtitle = "More than 1.2 Million confirmed COVID-19 deaths worldwide",
+  x="",
+  y=""
+)+
+  
+theme_light()+
+theme(legend.position  = "right", 
+      legend.direction = "vertical",
+      axis.text.x = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks = element_blank()) +
+scale_fill_continuous(name = "Mortality Rate", type = "viridis")#, labels = scales::percent(scale = 1, decimal.mark = ".", suffix = " %"))
+```
+
+
