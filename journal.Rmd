@@ -22,9 +22,9 @@ knitr::opts_chunk$set(message=FALSE,warning=FALSE, cache=TRUE)
 
 Last compiled: `r Sys.Date()`
 
-Our Task was to analyse the bike sales data. After previously analyzing the data by the bike-type and manufacturing-year we now want to take a look at the number of sales sorted by their state in which they were sold in. Afterwards we want to take a look how these numbers changed over the last years.
+Our Task was to analyze the given bike sales data. After previously analyzing the data by the bike-type and manufacturing-year we now want to take a look at the number of sales sorted by the state in which they were sold in. Afterwards we want to take a look how these numbers changed over the last years.
 
-Let's first take a look at the number of sales per state if you add up all the prevoius years together:
+Let's first take a look at the number of sales per state if you add up all the previous years together:
 
 ```{r}
 # 1.0 Load libraries ----
@@ -35,9 +35,9 @@ Let's first take a look at the number of sales per state if you add up all the p
   library(readxl)
 
 # 2.0 Importing Files ----
-  bikes <- read_xlsx(path = "~/Documents/GitHub/ws20-business-data-science-basics---lab-journal-ABQ1996/DS_101/00_data/01_bike_sales/01_raw_data/bikes.xlsx")
-  bike_shops <- read_xlsx(path = "~/Documents/GitHub/ws20-business-data-science-basics---lab-journal-ABQ1996/DS_101/00_data/01_bike_sales/01_raw_data/bikeshops.xlsx")
-  bike_orders <- read_xlsx(path = "~/Documents/GitHub/ws20-business-data-science-basics---lab-journal-ABQ1996/DS_101/00_data/01_bike_sales/01_raw_data/orderlines.xlsx")
+  bikes <- read_xlsx(path = "~/Documents/GitHub/DS_101/00_data/01_bike_sales/01_raw_data/bikes.xlsx")
+  bike_shops <- read_xlsx(path = "~/Documents/GitHub/DS_101/00_data/01_bike_sales/01_raw_data/bikeshops.xlsx")
+  bike_orders <- read_xlsx(path = "~/Documents/GitHub/DS_101/00_data/01_bike_sales/01_raw_data/orderlines.xlsx")
 
 # 3.0 Examining Data ----
   glimpse(bike_orders)
@@ -67,40 +67,41 @@ Let's first take a look at the number of sales per state if you add up all the p
   #Separate the joined location category into 2 separate columns
   bike_orderlines_bystate <- separate(bike_orderlines_wrangled, col=location, into = c("state","city"), sep = ", ")
 
+  #State and City Variables are switched :D
   # Manipulate the data
   sales_by_state <- bike_orderlines_bystate
   
   # Select columns
   sales_by_state %>% 
-  select(state, city, quantity) %>% 
+  select(state, city, quantity,total.price) %>% 
     
   # Grouping by year and summarizing sales
-  group_by(state) %>% 
-  summarize(numberofsales = sum(quantity)) %>%
+  group_by(city) %>% 
+  summarize(numberofsales = sum(total.price)) %>%
 
   # Step 2 - Visualize
     
   # Setup canvas with the columns year (x-axis) and sales (y-axis)
-  ggplot(aes(x = state, y = numberofsales)) +
+  ggplot(aes(x = city, y = numberofsales)) +
     
   # Geometries
   geom_col(fill = "#2DC6D6") + # Use geom_col for a bar plot
-  geom_label(aes(label = numberofsales)) + # Adding labels to the bars
+  geom_label(aes(label = numberofsales), labels = dollar_format(suffix = "€", prefix = "", decimal.mark = ",", big.mark = ".")) + # Adding labels to the bars
   geom_smooth(method = "lm", se = FALSE) + # Adding a trendline
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     
   # Formatting
-  # scale_y_continuous(labels = scales::dollar) + # Change the y-axis. 
+  scale_y_continuous(labels = dollar_format(suffix = "€", prefix = "", decimal.mark = ",", big.mark = ".")) + # Change the y-axis. 
   # Again, we have to adjust it for euro values
   labs(
       title    = "Revenue by state",
-      subtitle = "Upward Trend",
+      subtitle = "NRW has the most bike sales in the last years",
       x = "", # Override defaults for x and y
       y = "Revenue"
     )
 ```
 
-Interesting! Let's see if Bremen is still the city with the most sales if we additionally sort them by their manufacturing-year:
+Interesting! Let's see if NRW is still the state with the most sales if we additionally sort them by their manufacturing-year:
 
 
 ```{r plot, fig.width= 10, fig.height=5}
@@ -113,21 +114,21 @@ Interesting! Let's see if Bremen is still the city with the most sales if we add
   mutate(year = year(order.date)) %>%
     
   # Group by and summarize year and main catgegory
-  group_by(state,year) %>%
+  group_by(state,city,year) %>%
   summarise(numberofsales_2 = sum(quantity)) %>%
   ungroup() %>% 
     
   # Set up x, y, fill
-  ggplot(aes(x = state, y = numberofsales_2, fill = year)) +
+  ggplot(aes(x = year, y = numberofsales_2 ))+ #, fill = numberofsales_2 )) +
     
   # Geometries
   geom_col() + # Run up to here to get a stacked bar plot
     
   # Facet
-  facet_wrap(~ year) +
+  facet_wrap(~ city) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(
-      title = "Revenue by year and main category",
+      title = "Revenue by year and state",
       subtitle = "Each product category has an upward trend",
       fill = "Main category" # Changes the legend name
     )
@@ -135,7 +136,7 @@ Interesting! Let's see if Bremen is still the city with the most sales if we add
 ```
 
 # Section 2: Data Aquisition
-Let's gather some data from the pokemon universe. Maybe they can help with the bike sales all over the country. Who doesn't want to catch a fast running pokemon if he or she sees it on the streets?
+Let's gather some data from the international space station. Maybe the astronauts can help with the bike sales all over the country. Who doesn't want to have their spectacular view over the world?
 ```{r}
 library(tidyverse) # Main Package - Loads dplyr, purrr, etc.
 library(rvest)     # HTML Hacking & Web Scraping
@@ -146,17 +147,15 @@ library(stringi)   # character string/text processing
 library(httr)
 library(glue)
 
-Pokemon_API <- function(path) {
-  url <- modify_url(url = "https://pokeapi.co", path = glue("/api/v2/pokemon-species/{path}/"))
-  resp_raw <- GET(url)
-  stop_for_status(resp_raw) # automatically throws an error if a request did not succeed
-  resp_JSON <- fromJSON(rawToChar(resp_raw$content), flatten) 
-}
-Pokemon_species <- Pokemon_API("5")
-Pokemon_species
+Current_astronauts_raw <- GET("http://api.open-notify.org/astros.json")
+stop_for_status(Current_astronauts_raw) # automatically throws an error if a request did not succeed
+Current_astronauts <- fromJSON(rawToChar(Current_astronauts_raw$content)) 
+Current_astronauts <- Current_astronauts$people %>% 
+                      select(name,craft)
+Current_astronauts
 ```
 
-Well that was some interesting insight into the pokemon universe. Now let's shift back to the bike sales in order to determine the bike categories of the competition:
+Hm that was to be expected. There are currently a few people on the ISS but I suspect they have better things to do than to help with bike sales. They can't even use them up there :D. Now let's shift back to the bike sales in order to determine the bike categories of the competition because we need to improve the sales data from our company by ourself:
 ```{r}
 library(tidyverse) # Main Package - Loads dplyr, purrr, etc.
 library(rvest)     # HTML Hacking & Web Scraping
@@ -298,7 +297,6 @@ library(glue)
   bike_cat1_cop
   bike_cat2_cop
 ```
-Well that's sad. There seems to be too much competition on the market in order to correlate the number of pokemons with an increase in bike sales.
 
 
 # Section 3: Data Wrangling
@@ -596,7 +594,7 @@ expand_limits(y = 0) +
 
 labs(
   title = "COVID-19 confirmed cases worldwide",
-  subtitle = "As of 31/10/2020. Europe only consists of countries shown with the execption of the USA.",
+  subtitle = "As of 03/12/2020. Europe only consists of countries shown with the execption of the USA.",
   x = "Year 2020",
   y = "Cumulatitve Cases"
 )+   
@@ -616,7 +614,7 @@ scale_y_continuous(labels = scales::dollar_format(scale = 1/1000000,
                                                     suffix = " M")) +
 
 geom_label_repel(aes(
-  label=ifelse((dateRep == "2020-11-26" & countriesAndTerritories == "United_States_of_America") , as.character(cum_cases),'')), 
+  label=ifelse((dateRep == "2020-12-02" & countriesAndTerritories == "United_States_of_America") , as.character(cum_cases),'')), 
   nudge_x = -10,
   label.padding = unit(0.55, "lines"), # Rectangle size around label
   label.size = 0.35,
@@ -627,8 +625,8 @@ geom_label_repel(aes(
 )+
 
 geom_label_repel(aes(
-  label=ifelse((dateRep == "2020-11-25" & countriesAndTerritories == "Europe") , as.character(cum_cases),'')), 
-  nudge_x = -20,
+  label=ifelse((dateRep == "2020-12-01" & countriesAndTerritories == "Europe") , as.character(cum_cases),'')), 
+  nudge_x = -40,
   label.padding = unit(0.55, "lines"), # Rectangle size around label
   label.size = 0.35,
   point.padding = unit(0.55,"lines"),
